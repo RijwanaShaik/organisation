@@ -1,0 +1,81 @@
+public class Rule {
+    private double stressedNetWorth;
+    private double stressedLiquidity;
+    private double stressedPotentialLiquidity;
+
+    public Rule(double stressedNetWorth, double stressedLiquidity, double stressedPotentialLiquidity) {
+        this.stressedNetWorth = stressedNetWorth;
+        this.stressedLiquidity = stressedLiquidity;
+        this.stressedPotentialLiquidity = stressedPotentialLiquidity;
+    }
+
+    public double getStressedNetWorth() {
+        return stressedNetWorth;
+    }
+
+    public double getStressedLiquidity() {
+        return stressedLiquidity;
+    }
+
+    public double getStressedPotentialLiquidity() {
+        return stressedPotentialLiquidity;
+    }
+}
+
+
+
+public interface RuleService {
+    String evaluateRule(Rule rule);
+}
+
+@Service
+public class RuleServiceImpl implements RuleService {
+
+
+    @Override
+    public String evaluateRule(Rule rule) {
+        double ratio1 = rule.getStressedNetWorth() / rule.getStressedLiquidity();
+        double ratio2 = rule.getStressedNetWorth() / rule.getStressedPotentialLiquidity();
+
+        double averageRatio = (ratio1 + ratio2) / 2;
+
+        double percentageLiquidity = getPercentageLiquidity(rule.getStressedNetWorth());
+
+        if (averageRatio > percentageLiquidity) {
+            return "Liquidity satisfactory";
+        } else if (ratio1 < percentageLiquidity || ratio2 < percentageLiquidity) {
+            return "Liquidity review recommended";
+        } else {
+            return "Liquidity in excess of threshold levels";
+        }    }
+    private double getPercentageLiquidity(double stressedNetWorth) {
+        // Implement interpolation based on the table values
+        // This is a simplified example; you should implement the actual interpolation logic.
+        if (stressedNetWorth < 1000000) {
+            return 20.0;
+        } else if (stressedNetWorth < 5000000) {
+            return 17.5;
+        } else if (stressedNetWorth < 10000000) {
+            return 10.0;
+        } else if (stressedNetWorth < 100000000) {
+            return 5.0;
+        } else if (stressedNetWorth < 500000000) {
+            return 3.75;
+        } else {
+            return 2.5;
+        }
+    }
+}
+
+@RestController
+@RequestMapping("/api/v1/rule/engine/")
+@CrossOrigin(allowedHeaders = "*", origins = "*")
+public class RuleEngineController {
+    @Autowired
+    private RuleService ruleService;
+    @PostMapping("/evaluate")
+    public ResponseEntity<String> evaluateRule(@RequestBody Rule rule) {
+        String insightMessage = ruleService.evaluateRule(rule);
+        return ResponseEntity.ok(insightMessage);
+    }
+}

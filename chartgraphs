@@ -1,0 +1,55 @@
+public List<String> getChartNamesForLevel(CustomerLevel level) {
+        switch (level) {
+            case LEVEL_1:
+                return getLevel1ChartNames();
+            case LEVEL_2:
+                return getLevel2ChartNames();
+            case LEVEL_3:
+                return getLevel3ChartNames();
+            default:
+                return new ArrayList<>();
+        }
+    }
+
+    private List<String> getLevel1ChartNames() {
+        List<String> chartNames = new ArrayList<>();
+        chartNames.add("Family Assets: Composition");
+        chartNames.add("Family Assets: Currency Mix (Gross)");
+        chartNames.add("Family Assets: Liquidity Position (Gross)");
+        chartNames.add("Family Assets and Liabilities by Currency");
+        return chartNames;
+    }
+
+    private List<String> getLevel2ChartNames() {
+        List<String> chartNames = new ArrayList<>();
+        chartNames.add("Family Assets Mix: Sectoral Exposure (Gross)");
+        chartNames.add("Asset Legal Exposure");
+        chartNames.add("Asset Economic Exposure");
+        return chartNames;
+    }
+
+    private List<String> getLevel3ChartNames() {
+        List<String> chartNames = new ArrayList<>();
+        chartNames.add("Assets and Liabilities Segregation by UBO");
+        chartNames.add("Cash Revenue Attribution by UBO");
+        chartNames.add("Long Term Revenue Attribution by UBO");
+        chartNames.add("Projections");
+        chartNames.add("Liquidity Analysis");
+        chartNames.add("Climate Change Exposure");
+        return chartNames;
+    }
+@Entity
+@Getter
+@Setter
+public class LevelBasedChart extends BaseEntity {
+    private CustomerLevel level;
+    private List<String> charts=new ArrayList<>();
+}
+
+included the customer level in CustomerLiabilityResponseDto
+
+customerLiabilityResponsedto changes
+
+    this.level= CustomerLevel.getString(entity.getLevel());
+  private String level;
+

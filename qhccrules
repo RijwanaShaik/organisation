@@ -1,0 +1,273 @@
+import com.net.thrymr.qh_cc_poc.dto.RequestDto;
+global com.net.thrymr.qh_cc_poc.dto.ResponseDto responseDto;
+import com.net.thrymr.qh_cc_poc.enums.ChartType;
+import com.net.thrymr.qh_cc_poc.enums.DataType;
+import java.util.Map
+import java.util.List
+
+dialect "mvel"
+
+rule "showing suggested graphs"
+when
+    requestDto: RequestDto()
+then
+
+    Map<String, DataType> dataTypes = requestDto.classifyDataTypes();
+    long continuousCount = 0;
+    long discreteCount = 0;
+
+    for (DataType type : dataTypes.values()) {
+        if (type.equals(DataType.CONTINUOUS)) {
+            continuousCount++;
+        } else if (type.equals(DataType.DISCRETE)) {
+            discreteCount++;
+        }
+    }
+
+
+    if (continuousCount == 2) {
+        responseDto.setType(ChartType.CONTINUOUS_AND_CONTINUOUS_DATA);
+    } else if (discreteCount == 2) {
+        responseDto.setType(ChartType.DISCRETE_AND_DISCRETE_DATA);
+    } else if (continuousCount == 1 && discreteCount == 1) {
+        responseDto.setType(ChartType.CONTINUOUS_AND_ONE_DISCRETE_DATA);
+    } else if (continuousCount == 1 && discreteCount == 0) {
+        responseDto.setType(ChartType.DISCRETE_AND_ONE_CONTINUOUS_DATA);
+    }
+     responseDto.setSuggestedCharts(ChartType.getChartNames(responseDto.getType()));
+
+end
+
+
+
+package com.net.thrymr.qh_cc_poc.enums;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public enum ChartType {
+    BAR,
+    PIE,
+    LINE,
+    CONTINUOUS_AND_CONTINUOUS_DATA,
+    DISCRETE_AND_DISCRETE_DATA,
+    CONTINUOUS_AND_ONE_DISCRETE_DATA,
+    DISCRETE_AND_ONE_CONTINUOUS_DATA;
+    public static List<String> getChartNames(ChartType type) {
+        switch (type) {
+            case CONTINUOUS_AND_CONTINUOUS_DATA:
+                return getContinuousAndContinuousDataCharts();
+            case DISCRETE_AND_DISCRETE_DATA:
+                return getDiscreteAndDiscreteDataCharts();
+            case CONTINUOUS_AND_ONE_DISCRETE_DATA:
+                return getContinuousAndOneDiscreteDataCharts();
+            case DISCRETE_AND_ONE_CONTINUOUS_DATA:
+                return getDiscreteAndOneContinuousDataCharts();
+            default:
+                return new ArrayList<>();
+        }
+    }
+
+    private static List<String> getContinuousAndContinuousDataCharts() {
+        return List.of("Area Chart");
+    }
+
+    private static List<String> getDiscreteAndDiscreteDataCharts() {
+        return List.of("No Possible Graphs");
+    }
+
+    private static List<String> getContinuousAndOneDiscreteDataCharts() {
+        return List.of(
+                "Bar Chart",
+                "Grouped Bar Chart (for more than 1 continuous data)",
+                "Line Chart",
+                "Multi Line Chart (for more than 1 continuous data)",
+                "Dual Axis Chart (for 2 continuous data)",
+                "Donut Chart",
+                "Pie Chart",
+                "Funnel Chart",
+                "Bullet Chart (if one continuous data set is subset of other)",
+                "Bubble Chart",
+                "Connected Scatterplot (for 2 continuous data)"
+        );
+    }
+
+    private static List<String> getDiscreteAndOneContinuousDataCharts() {
+        return List.of(
+                "Stacked Bar Chart",
+                "Tree Map",
+                "Sun Burst"
+        );
+    }
+
+}
+
+
+package com.net.thrymr.qh_cc_poc.dto;
+
+import com.net.thrymr.qh_cc_poc.enums.ChartType;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.List;
+
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+public class ResponseDto {
+    private ChartType type;
+    private String suggestedCharts;
+}
+
+
+
+package com.net.thrymr.qh_cc_poc.dto;
+
+
+import com.net.thrymr.qh_cc_poc.enums.ChartType;
+import com.net.thrymr.qh_cc_poc.enums.DataType;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.HashMap;
+import java.util.Map;
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class RequestDto {
+    Map<String,String> values= new HashMap<>();
+
+   public Map<String, DataType> classifyDataTypes() {
+      Map<String, DataType> dataTypes = new HashMap<>();
+      for (Map.Entry<String, String> entry : values.entrySet()) {
+         String fieldName = entry.getKey();
+         String dataTypeStr = entry.getValue();
+         DataType dataType = classifyDataType(dataTypeStr);
+         dataTypes.put(fieldName, dataType);
+      }
+      return dataTypes;
+   }
+
+   private DataType classifyDataType(String dataTypeStr) {
+      if ("Integer".equals(dataTypeStr) || "Double".equals(dataTypeStr) || "Float".equals(dataTypeStr) || "Long".equals(dataTypeStr)) {
+         return DataType.CONTINUOUS;
+      } else if("String".equals(dataTypeStr)||"Date".equals(dataTypeStr)){
+         return DataType.DISCRETE;
+      }
+       return null;
+   }
+}
+
+
+package com.net.thrymr.qh_cc_poc.service.impl;
+
+import com.net.thrymr.qh_cc_poc.dto.RequestDto;
+import com.net.thrymr.qh_cc_poc.dto.ResponseDto;
+import com.net.thrymr.qh_cc_poc.enums.ChartType;
+import com.net.thrymr.qh_cc_poc.enums.DataType;
+import com.net.thrymr.qh_cc_poc.service.RuleEngineService;
+import org.kie.api.KieServices;
+import org.kie.api.builder.KieBuilder;
+import org.kie.api.builder.KieFileSystem;
+import org.kie.api.builder.KieModule;
+import org.kie.api.runtime.KieContainer;
+import org.kie.api.runtime.KieSession;
+import org.kie.internal.io.ResourceFactory;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class RuleEngineServiceImpl implements RuleEngineService {
+
+
+    @Override
+    public ResponseDto getSuggestedCharts(RequestDto requestDto) {
+        ResponseDto responseDto=new ResponseDto();
+        KieSession kieSession = kiaSession("rules/charts.drl");
+        kieSession.insert(requestDto);
+        kieSession.setGlobal("responseDto",responseDto);
+        kieSession.fireAllRules();
+        kieSession.dispose();
+
+//        List<String> suggestedCharts = ChartType.getChartNames(responseDto.getType());
+//        responseDto.setSuggestedCharts(String.join(", ", suggestedCharts));
+//        Map<String, DataType> dataTypes = requestDto.classifyDataTypes();
+//
+//        / Count continuous and discrete data types
+//        long continuousCount = dataTypes.values().stream().filter(type -> type == DataType.CONTINUOUS).count();
+//
+//        long discreteCount = dataTypes.values().stream().filter(type -> type == DataType.DISCRETE).count();
+//
+//
+//
+//        if (continuousCount == 2) {
+//            responseDto.setType(ChartType.CONTINUOUS_AND_CONTINUOUS_DATA);
+//        } else if (discreteCount == 2) {
+//            responseDto.setType(ChartType.DISCRETE_AND_DISCRETE_DATA);
+//        } else if (continuousCount == 1 && discreteCount == 1) {
+//            responseDto.setType(ChartType.CONTINUOUS_AND_ONE_DISCRETE_DATA);
+//        } else if (continuousCount == 1 && discreteCount == 0) {
+//            responseDto.setType(ChartType.DISCRETE_AND_ONE_CONTINUOUS_DATA);
+//        }
+//
+//        // Update responseDto
+//        List<String> suggestedCharts = String.valueOf(ChartType.getChartNames(responseDto.getType()));
+//        responseDto.setSuggestedCharts(String.join(", ", suggestedCharts));
+        return responseDto ;
+    }
+
+    public KieSession kiaSession(String rdlFile){
+
+        KieFileSystem kieFileSystem = getKieFileSystem(rdlFile);
+        KieBuilder kieBuilder = KieServices.Factory.get().newKieBuilder(kieFileSystem);
+        kieBuilder.buildAll();
+        KieModule kieModule = kieBuilder.getKieModule();
+        KieContainer kieContainer = KieServices.Factory.get().newKieContainer(kieModule.getReleaseId());
+        KieSession kieSession = kieContainer.newKieSession();
+        return kieSession;
+    }
+
+    private KieFileSystem getKieFileSystem(String rdlFile) {
+        KieFileSystem kieFileSystem = KieServices.Factory.get().newKieFileSystem();
+        kieFileSystem.write(ResourceFactory.newClassPathResource(rdlFile));
+        return kieFileSystem;
+    }
+}
+
+
+
+
+package com.net.thrymr.qh_cc_poc.controller;
+
+import com.net.thrymr.qh_cc_poc.dto.RequestDto;
+import com.net.thrymr.qh_cc_poc.dto.ResponseDto;
+import com.net.thrymr.qh_cc_poc.response.GenericResponse;
+import com.net.thrymr.qh_cc_poc.service.RuleEngineService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/v1/rule/engine")
+public class RuleEngineController {
+    @Autowired
+    private RuleEngineService ruleEngineService;
+
+    @PostMapping("/suggest-charts")
+    public GenericResponse getSuggestedCharts(@RequestBody RequestDto requestDto){
+       ResponseDto responseDto=ruleEngineService.getSuggestedCharts(requestDto);
+        return new GenericResponse(HttpStatus.OK,responseDto);
+    }
+}
+

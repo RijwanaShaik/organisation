@@ -1,0 +1,190 @@
+public List<AssetLiabilityResponse> calculateAssetValues(AssetRequest assetRequest) {
+        // Fetch the customer's reference currency here, if needed
+        Optional<Customer> customerOptional = customerRepository.findById(assetRequest.getCustomerId());
+
+        if (!customerOptional.isPresent()) {
+            throw new RuntimeException("Customer not found");
+        }
+
+        Customer customer = customerOptional.get();
+        String referenceCurrency = customer.getCurrency().getCurrencyCode();
+
+        // Fetch all assets for the customer
+        List<Asset> customerAssets = assetRepository.findAllByCustomerIdAndIsActiveAndIsDeleted(assetRequest.getCustomerId(),Boolean.TRUE, Boolean.FALSE);
+
+        List<AssetLiabilityResponse> assetLiabilityRespons = new ArrayList<>();
+
+        for (Asset asset : customerAssets) {
+            double assetValue = asset.getValue();
+            String assetCurrency = asset.getCurrency().getCurrencyCode();
+
+            double calculatedValue;
+
+            // Calculate the asset value based on the customer's reference currency
+            if (assetCurrency.equals(referenceCurrency)) {
+                calculatedValue = assetValue * (1 - assetRequest.getCurrencyChange()) * (1 + assetRequest.getFamilyHoldingChange());
+            } else {
+                // Get the exchange rate
+                double exchangeRate = util.convert(assetCurrency, referenceCurrency, 1.0);
+
+                // Calculate the asset value in the reference currency
+                calculatedValue = assetValue * (1 + assetRequest.getFamilyHoldingChange()) * (1 - assetRequest.getCurrencyChange()) * exchangeRate;
+            }
+
+            AssetLiabilityResponse assetLiabilityResponse = new AssetLiabilityResponse();
+            assetLiabilityResponse.setAssetId(asset.getId());
+            assetLiabilityResponse.setAssetName(asset.getName());
+            assetLiabilityResponse.setAssetValue(assetValue);
+            assetLiabilityResponse.setAssetCalculatedValue(calculatedValue);
+            assetLiabilityResponse.setAssetCurrency(assetCurrency);
+            assetLiabilityResponse.setCustomerReferenceCurrency(referenceCurrency);
+
+            assetLiabilityRespons.add(assetLiabilityResponse);
+        }
+
+        return assetLiabilityRespons;
+    }
+   // @GetMapping("/calculateAssetsAndLiabilities/{customerId}")
+    public List<AssetLiabilityResponse> calculateAssetsAndLiabilities(AssetRequest assetRequest) {
+        // Fetch the customer's reference currency here, if needed
+        Optional<Customer> customerOptional = customerRepository.findById(assetRequest.getCustomerId());
+
+        if (!customerOptional.isPresent()) {
+            throw new RuntimeException("Customer not found");
+        }
+
+        Customer customer = customerOptional.get();
+        String referenceCurrency = customer.getCurrency().getCurrencyCode();
+
+        // Fetch all assets for the customer
+        List<Asset> customerAssets = assetRepository.findAllByCustomerIdAndIsActiveAndIsDeleted(assetRequest.getCustomerId(), Boolean.TRUE, Boolean.FALSE);
+
+        // Fetch all liabilities for the customer
+        List<Liability> customerLiabilities = liabilityRepository.findAllByCustomerIdAndIsActiveAndIsDeleted(assetRequest.getCustomerId(), Boolean.TRUE, Boolean.FALSE);
+
+        List<AssetLiabilityResponse> assetLiabilityResponses = new ArrayList<>();
+
+        for (Asset asset : customerAssets) {
+            double assetValue = asset.getValue();
+            String assetCurrency = asset.getCurrency().getCurrencyCode();
+
+            double calculatedValue;
+
+            // Calculate the asset value based on the customer's reference currency
+            if (assetCurrency.equals(referenceCurrency)) {
+                calculatedValue = assetValue * (1 - assetRequest.getCurrencyChange()) * (1 + assetRequest.getFamilyHoldingChange());
+            } else {
+                // Get the exchange rate
+                double exchangeRate = util.convert(assetCurrency, referenceCurrency, 1.0);
+
+                // Calculate the asset value in the reference currency
+                calculatedValue = assetValue * (1 + assetRequest.getFamilyHoldingChange()) * (1 - assetRequest.getCurrencyChange()) * exchangeRate;
+            }
+
+            AssetLiabilityResponse assetLiabilityResponse = new AssetLiabilityResponse();
+            assetLiabilityResponse.setAssetId(asset.getId());
+            assetLiabilityResponse.setAssetName(asset.getName());
+            assetLiabilityResponse.setAssetValue(assetValue);
+            assetLiabilityResponse.setAssetCalculatedValue(calculatedValue);
+            assetLiabilityResponse.setAssetCurrency(assetCurrency);
+            assetLiabilityResponse.setCustomerReferenceCurrency(referenceCurrency);
+
+            assetLiabilityResponses.add(assetLiabilityResponse);
+        }
+
+        for (Liability liability : customerLiabilities) {
+            double liabilityValue = liability.getValue();
+            String liabilityCurrency = liability.getCurrency().getCurrencyCode();
+
+            double calculatedValue;
+
+            // Calculate the liability value based on the customer's reference currency
+            if (liabilityCurrency.equals(referenceCurrency)) {
+                // Liability Currency is same as Reference Currency
+                calculatedValue = liabilityValue * (1 - assetRequest.getCurrencyChange());
+            } else {
+                // Liability Currency is different from Reference Currency
+                // Use the same currency value, no exchange rate involved
+                calculatedValue = liabilityValue;
+            }
+
+            AssetLiabilityResponse response = new AssetLiabilityResponse();
+            response.setLiabilityId(liability.getId());
+            response.setLiabilityName(liability.getName());
+            response.setLiabilityValue(liabilityValue);
+            response.setLiabilityCurrency(liabilityCurrency);
+           // response.setType("Liability");
+            response.setLiabilityCalculatedValue(calculatedValue);
+            response.setCustomerReferenceCurrency(referenceCurrency);
+
+            assetLiabilityResponses.add(response);
+        }
+
+        return assetLiabilityResponses;
+    }
+
+
+
+@Getter
+@Setter
+public class AssetLiabilityResponse {
+    private Long assetId;
+    private Long liabilityId;
+    private String assetName;
+    private String liabilityName;
+    private double assetValue;
+    private double liabilityValue;
+    private String assetCurrency;
+    private String liabilityCurrency;
+    private String customerReferenceCurrency;
+    private double assetCalculatedValue;
+    private double liabilityCalculatedValue;
+    private List<AssetResponse> assets;
+    private List<LiabilityResponse> liabilities;
+
+}
+
+
+
+@Getter
+@Setter
+public class AssetResponse {
+    private Long assetId;
+    private String assetName;
+    private double assetValue;
+    private String assetCurrency;
+    private String customerReferenceCurrency;
+    private double calculatedValue;
+}
+
+
+@Getter
+@Setter
+public class LiabilityResponse {
+    private Long liabilityId;
+    private String liabilityName;
+    private double liabilityValue;
+    private String liabilityCurrency;
+    private String customerReferenceCurrency;
+    private double calculatedValue;
+}
+
+@Getter
+@Setter
+public class AssetRequest {
+    private Long customerId;
+    private double currencyChange;
+    private double familyHoldingChange;
+
+}
+
+  @GetMapping("/calculate")
+    public List<AssetLiabilityResponse> calculateAssetValues(@RequestBody AssetRequest assetRequest) {
+        return restAssetService.calculateAssetValues(assetRequest);
+    }
+
+    @GetMapping("/calculateAssetsAndLiabilities")
+    public List<AssetLiabilityResponse> calculateAssetsAndLiabilities(@RequestBody AssetRequest assetRequest) {
+        return restAssetService.calculateAssetsAndLiabilities(assetRequest);
+    }
+}

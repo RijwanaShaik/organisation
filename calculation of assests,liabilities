@@ -1,0 +1,181 @@
+ public List<AssetLiabilityResponse> calculateAssetValues(AssetRequest assetRequest) {
+
+        Optional<Customer> customerOptional = customerRepository.findById(assetRequest.getCustomerId());
+
+        if (!customerOptional.isPresent()) {
+            throw new RuntimeException("Customer not found");
+        }
+        Customer customer = customerOptional.get();
+        String referenceCurrency = customer.getCurrency().getCurrencyCode();
+
+        List<Asset> customerAssets = assetRepository.findAllByCustomerIdAndIsActiveAndIsDeleted(assetRequest.getCustomerId(),Boolean.TRUE, Boolean.FALSE);
+
+        List<AssetLiabilityResponse> assetLiabilityRespons = new ArrayList<>();
+        List<AssetResponse> assetResponses=new ArrayList<>();
+        for (Asset asset : customerAssets) {
+            double assetValue = asset.getValue();
+            String assetCurrency = asset.getCurrency().getCurrencyCode();
+            double calculatedValue;
+            if (assetCurrency.equals(referenceCurrency)) {
+                calculatedValue = assetValue * (1 - assetRequest.getCurrencyChange()) * (1 + assetRequest.getFamilyHoldingChange());
+            } else {
+                double exchangeRate = util.convert(assetCurrency, referenceCurrency, assetValue);
+                calculatedValue = assetValue * (1 + assetRequest.getFamilyHoldingChange()) * (1 - assetRequest.getCurrencyChange()) * exchangeRate;
+            }
+
+            AssetResponse assetResponse = new AssetResponse();
+            assetResponse.setAssetId(asset.getId());
+            assetResponse.setAssetName(asset.getName());
+            assetResponse.setAssetValue(assetValue);
+            assetResponse.setCalculatedValue(CockpitUtil.convertToMillions(calculatedValue));
+            assetResponse.setAssetCurrency(assetCurrency);
+            assetResponse.setCustomerReferenceCurrency(referenceCurrency);
+            assetResponses.add(assetResponse);
+
+           AssetLiabilityResponse assetLiabilityResponse=new AssetLiabilityResponse();
+           assetLiabilityResponse.setAssets(assetResponses);
+        }
+
+        return assetLiabilityRespons;
+    }
+
+    public AssetLiabilityResponse calculateAssetsAndLiabilities(AssetRequest assetRequest) {
+        Optional<Customer> customerOptional = customerRepository.findById(assetRequest.getCustomerId());
+        if (!customerOptional.isPresent()) {
+            throw new RuntimeException("Customer not found");
+        }
+        Customer customer = customerOptional.get();
+        String referenceCurrency = customer.getCurrency().getCurrencyCode();
+        List<Asset> customerAssets = assetRepository.findAllByCustomerIdAndIsActiveAndIsDeleted(assetRequest.getCustomerId(), Boolean.TRUE, Boolean.FALSE);
+        List<Liability> customerLiabilities = liabilityRepository.findAllByCustomerIdAndIsActiveAndIsDeleted(assetRequest.getCustomerId(), Boolean.TRUE, Boolean.FALSE);
+        List<AssetResponse> assetResponses = new ArrayList<>();
+        List<LiabilityResponse> liabilityResponses=new ArrayList<>();
+        for (Asset asset : customerAssets) {
+            double assetValue = asset.getValue();
+            String assetCurrency = asset.getCurrency().getCurrencyCode();
+            double calculatedValue;
+            if (assetCurrency.equals(referenceCurrency)) {
+                if(asset.getIsFamilyHolding().equals(Boolean.TRUE)) {
+                    calculatedValue = assetValue * (1 - assetRequest.getCurrencyChange()) * (1 + assetRequest.getFamilyHoldingChange());
+                }else {
+                    calculatedValue = assetValue * (1 - assetRequest.getCurrencyChange()) ;
+                }
+            } else {
+                double exchangeRate = util.convert(assetCurrency, referenceCurrency, assetValue);
+                if(asset.getIsFamilyHolding().equals(Boolean.TRUE)) {
+                    calculatedValue = assetValue * (1 + assetRequest.getFamilyHoldingChange()) * (1 - assetRequest.getCurrencyChange()) * exchangeRate;
+                }else {
+                    calculatedValue = assetValue * (1 - assetRequest.getCurrencyChange()) * exchangeRate;
+                }
+            }
+
+            AssetResponse assetResponse = new AssetResponse();
+            assetResponse.setAssetId(asset.getId());
+            assetResponse.setAssetName(asset.getName());
+            assetResponse.setAssetValue(assetValue);
+            assetResponse.setCalculatedValue(CockpitUtil.convertToMillions(calculatedValue));
+            assetResponse.setAssetCurrency(assetCurrency);
+            assetResponse.setCustomerReferenceCurrency(referenceCurrency);
+
+            assetResponses.add(assetResponse);
+        }
+
+        for (Liability liability : customerLiabilities) {
+            LiabilityResponse response = getAssetLiabilityResponse(assetRequest, liability, referenceCurrency);
+            liabilityResponses.add(response);
+        }
+        AssetLiabilityResponse assetLiabilityResponse=new AssetLiabilityResponse();
+        assetLiabilityResponse.setAssets(assetResponses);
+        assetLiabilityResponse.setLiabilities(liabilityResponses);
+
+        return assetLiabilityResponse;
+    }
+
+    private static LiabilityResponse getAssetLiabilityResponse(AssetRequest assetRequest, Liability liability, String referenceCurrency) {
+        double liabilityValue = liability.getValue();
+        String liabilityCurrency = liability.getCurrency().getCurrencyCode();
+        double calculatedValue;
+        if (liabilityCurrency.equals(referenceCurrency)) {
+            calculatedValue = liabilityValue * (1 - assetRequest.getCurrencyChange());
+        } else {
+            calculatedValue = liabilityValue;
+        }
+        LiabilityResponse response = new LiabilityResponse();
+        response.setLiabilityId(liability.getId());
+        response.setLiabilityName(liability.getName());
+        response.setLiabilityValue(liabilityValue);
+        response.setLiabilityCurrency(liabilityCurrency);
+        response.setCalculatedValue(CockpitUtil.convertToMillions(calculatedValue));
+        response.setCustomerReferenceCurrency(referenceCurrency);
+        return response;
+    }
+
+
+public interface RestAssetService {
+  List<AssetLiabilityResponse> calculateAssetValues(AssetRequest assetRequest);
+    AssetLiabilityResponse calculateAssetsAndLiabilities(AssetRequest assetRequest);
+}
+
+
+@Getter
+@Setter
+public class AssetLiabilityResponse {
+//    private Long assetId;
+//    private Long liabilityId;
+//    private String assetName;
+//    private String liabilityName;
+//    private double assetValue;
+//    private double liabilityValue;
+//    private String assetCurrency;
+//    private String liabilityCurrency;
+//    private String customerReferenceCurrency;
+//    private double assetCalculatedValue;
+//    private double liabilityCalculatedValue;
+    private List<AssetResponse> assets;
+    private List<LiabilityResponse> liabilities;
+
+}
+
+
+@Getter
+@Setter
+public class AssetRequest {
+    private Long customerId;
+    private double currencyChange;
+    private double familyHoldingChange;
+
+}
+
+@Getter
+@Setter
+public class AssetResponse {
+    private Long assetId;
+    private String assetName;
+    private double assetValue;
+    private String assetCurrency;
+    private String customerReferenceCurrency;
+    private double calculatedValue;
+}
+
+@Getter
+@Setter
+public class LiabilityResponse {
+    private Long liabilityId;
+    private String liabilityName;
+    private double liabilityValue;
+    private String liabilityCurrency;
+    private String customerReferenceCurrency;
+    private double calculatedValue;
+}
+
+
+    @GetMapping("/calculate")
+    public List<AssetLiabilityResponse> calculateAssetValues(@RequestBody AssetRequest assetRequest) {
+        return restAssetService.calculateAssetValues(assetRequest);
+    }
+
+    @GetMapping("/calculateAssetsAndLiabilities")
+    public AssetLiabilityResponse calculateAssetsAndLiabilities(@RequestBody AssetRequest assetRequest) {
+        return restAssetService.calculateAssetsAndLiabilities(assetRequest);
+    }
+
